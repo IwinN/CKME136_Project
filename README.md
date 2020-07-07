@@ -15,3 +15,5 @@ Computer Aided Diagnosis have been used by clinicians to support clinical findin
 confirmation since the 90s. In case of breast cancer detection, the observations made by histopathologists
 can sometimes be in conflict and also subjective. CAD systems help to remove doubts in cases of non-
 concordance between specialists.
+
+The data source is available at http://andrewjanowczyk.com/wp-static/IDC_regular_ps50_idx5.zip
