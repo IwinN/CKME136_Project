@@ -1,5 +1,5 @@
 # CKME136_Project
-Automated detection of IDC in breast cancer whole slide image patches using Convoluted Neural Network
+# Automated detection of IDC in breast cancer whole slide image patches using Convoluted Neural Network
 Invasive ductal carcinoma (IDC) is one of the most common types of breast cancer (~55% incidence rate).
 The metastasis rate is extremely high with IDC cases. After biopsy, the cells have to be processed further
 by the histopathologist to determine the presence or absence of abnormality and then, determine if it is
