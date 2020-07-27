@@ -1,0 +1,207 @@
+from glob import glob
+import fnmatch
+import cv2
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+%matplotlib inline
+
+import tensorflow as tf
+
+sess = tf.Session() # to check which GPU tensorflow is using 
+
+import keras
+
+image_Patches = glob('D:\DataAnalysisRyerson\CKME136_Capstone\Resources\Breast cancer\**\*.png', recursive=True)
+
+pattern_Zero = '*class0.png'
+pattern_One = '*class1.png'
+
+#to save the file location of all images with file name class0
+class_Zero = fnmatch.filter(image_Patches, pattern_Zero)
+
+#to save the file location of all images with file name class1
+class_One = fnmatch.filter(image_Patches, pattern_One) 
+
+def process_images(lowerIndex,upperIndex):
+    """
+    Returns two arrays: 
+        x is an array of resized images
+        y is an array of corresponding labels
+    """ 
+#Resizing all the images to a standard format of dimensions 50X50X3    
+    height = 50
+    width = 50
+    channels = 3
+    
+    x = [] # a list to store image data
+    y = [] # a list to store corresponding class
+    for img in image_Patches[lowerIndex:upperIndex]:
+        full_size_image = cv2.imread(img)
+        image = (cv2.resize(full_size_image, (width,height), interpolation=cv2.INTER_CUBIC))
+        x.append(image)
+        if img in class_Zero:
+            y.append(0)
+        elif img in class_One:
+            y.append(1)
+        else:
+            return
+    return x,y
+
+X, Y = process_images(0,100000)
+
+X = np.array(X)
+
+X
+
+X = X.astype(np.float32) #Casting the array to single precision takes half as much space
+
+X
+
+X /= 255.
+
+X
+
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(X,Y,test_size=0.15)
+
+X_train
+
+X_test
+
+y_train
+
+y_test
+
+Y.count(0) #Checking the number of 0's in the array Y (this denotes number of malignant cases)
+
+Y.count(1) #Checking the number of 1's in the array Y (this denotes number of malignant cases)
+
+y_train.count(1) #Checking the number of 1's in the array y_train
+
+y_train.count(0) #Checking the number of 0's in the array y_train
+
+from keras.utils import to_categorical
+
+#One-Hot-Encode y_train and y_test
+y_train = to_categorical(y_train)
+y_test = to_categorical(y_test)
+
+y_train
+
+y_test
+
+X_trainShape = X_train.shape[1]*X_train.shape[2]*X_train.shape[3]
+X_testShape = X_test.shape[1]*X_test.shape[2]*X_test.shape[3]
+X_trainFlat = X_train.reshape(X_train.shape[0], X_trainShape)
+X_testFlat = X_test.reshape(X_test.shape[0], X_testShape)
+
+print(X_trainShape)
+print(X_testShape)
+print(X_trainFlat)
+print(X_testFlat)
+
+from imblearn.under_sampling import RandomUnderSampler
+random_under_sampler = RandomUnderSampler(sampling_strategy='majority')
+X_trainRus, Y_trainRus = random_under_sampler.fit_sample(X_trainFlat, y_train)
+X_testRus, Y_testRus = random_under_sampler.fit_sample(X_testFlat, y_test)
+
+print(X_trainRus)
+print(Y_trainRus)
+print(X_testRus)
+print(Y_testRus)
+
+# One-hot-encoding
+Y_trainRusHot = to_categorical(Y_trainRus, num_classes = 2)
+Y_testRusHot = to_categorical(Y_testRus, num_classes = 2)
+
+print(Y_trainRusHot)
+print(Y_testRusHot)
+
+np.unique(Y_trainRus, return_counts=True) 
+
+for i in range(len(X_trainRus)):
+    height, width, channels = 50,50,3
+    X_trainRusReshaped = X_trainRus.reshape(len(X_trainRus),\
+                                            height,width,channels)
+
+X_trainRusReshaped
+
+for i in range(len(X_testRus)):
+    height, width, channels = 50,50,3
+    X_testRusReshaped = X_testRus.reshape(len(X_testRus),\
+                                          height,width,channels)
+
+X_testRusReshaped
+
+from keras.models import Sequential
+from keras.layers import Dense, Dropout, Flatten
+from keras.layers import Conv2D, MaxPooling2D
+from keras.preprocessing.image import ImageDataGenerator
+
+batch_size = 256
+num_classes = 2
+epochs = 40
+
+model = Sequential()
+model.add(Conv2D(32, kernel_size=(3,3),
+                 activation='relu',
+                 input_shape=(50,50,3)))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+model.add(Conv2D(64, (3,3), activation='relu'))
+model.add(MaxPooling2D(pool_size=(2,2)))
+model.add(Conv2D(128, (3, 3), activation='relu'))
+model.add(Conv2D(256, (3, 3), activation='relu'))
+# converting the 3D feature maps to 1D feature vectors for the- 
+# dense layer below
+model.add(Flatten()) 
+model.add(Dropout(0.5))
+model.add(Dense(128, activation='relu'))
+model.add(Dropout(0.5))
+model.add(Dense(128, activation='relu'))
+model.add(Dense(num_classes, activation='sigmoid'))
+
+model.compile(loss=keras.losses.binary_crossentropy,
+              optimizer=keras.optimizers.Adam(lr=0.00001),
+              metrics=['accuracy'])
+
+datagen = ImageDataGenerator(
+    featurewise_center=True,
+    featurewise_std_normalization=True,
+    rotation_range=180,
+    horizontal_flip=True,vertical_flip = True)
+
+from keras.callbacks import EarlyStopping, ModelCheckpoint
+
+early_stopping_monitor = EarlyStopping(monitor='val_loss',\
+                                       patience=3, mode='min')
+model_checkpoint = ModelCheckpoint('best_model.h5', monitor='val_loss', \
+                                   mode='min', verbose=1, \
+                                   save_best_only=True)
+
+training = model.fit_generator(datagen.flow(X_trainRusReshaped,Y_trainRusHot,batch_size=batch_size),
+                    steps_per_epoch=len(X_trainRusReshaped) / batch_size, epochs=epochs,validation_data=(X_testRusReshaped, Y_testRusHot), verbose=1, callbacks=[early_stopping_monitor, model_checkpoint])
+
+plt.plot(training.history['loss'])
+plt.plot(training.history['val_loss'])
+plt.title('model loss')
+plt.ylabel('loss')
+plt.xlabel('epoch')
+plt.legend(['train', 'test'], loc='upper left')
+plt.show()
+
+from keras.models import load_model
+from sklearn import metrics
+model = load_model('best_model.h5')
+
+y_pred_one_hot = model.predict(X_testRusReshaped)
+y_pred_labels = np.argmax(y_pred_one_hot, axis = 1)
+
+y_true_labels = np.argmax(Y_testRusHot,axis=1)
+
+confusion_matrix = metrics.confusion_matrix(y_true=y_true_labels, y_pred=y_pred_labels)
+print(confusion_matrix)
+
+
+
+
